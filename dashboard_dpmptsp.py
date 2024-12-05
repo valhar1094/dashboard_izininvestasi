@@ -417,4 +417,111 @@ with st.spinner('Updating Report .... ') :
                         st.info("Tidak ada data izin untuk service point ini")
                 
                 except Exception as e:
-                    st.error(f"Terjadi kesalahan: {str(e)}")    
+                    st.error(f"Terjadi kesalahan: {str(e)}")   
+
+        # ------------------------------------------------------------------------------------------------------------------
+        ## Tab 2 Bagian Investasi             
+        # ------------------------------------------------------------------------------------------------------------------
+
+    with tab2:
+        # Data jumlah investasi, dan pengawasan
+        tot_investasi_df = pd.read_excel('ct_investasi_dimas.xlsx', sheet_name='All')
+        filtered_data_inv = tot_investasi_df[tot_investasi_df['service_point'] == sp]
+
+        # Data cluster investasi
+        cluster_investasi_df = pd.read_excel('ct_investasi_dimas.xlsx', sheet_name='Cluster')
+        filtered_data_invc = cluster_investasi_df[cluster_investasi_df['service_point'] == sp]
+
+        if not filtered_data_inv.empty : 
+            total_investasi = filtered_data_inv['Jumlah_Investasi'].iloc[0]
+            pengawasan_r = filtered_data_inv['Rendah'].iloc[0]
+            pengawasan_mr = filtered_data_inv['Menengah Rendah'].iloc[0]
+            pengawasan_mt = filtered_data_inv['Menengah Tinggi'].iloc[0]
+            pengawasan_t = filtered_data_inv['Tinggi'].iloc[0]
+            total_pengawasan = pengawasan_r + pengawasan_mr + pengawasan_mt + pengawasan_t
+
+            pengawasan_r_perc = (pengawasan_r / total_pengawasan) * 100
+            pengawasan_mr_perc = (pengawasan_mr / total_pengawasan) * 100
+            pengawasan_mt_perc = (pengawasan_mt / total_pengawasan) * 100
+            pengawasan_t_perc = (pengawasan_t / total_pengawasan) * 100
+
+            # Define column untuk pengawasan dan investasi
+            st.subheader(f"Monitoring Metrics for {sp}")
+            inv1, inv2, inv3 = st.columns((1, 1, 1))
+            inv1.write('')
+            inv2.metric(label = "Total Investasi", value = f"Rp {total_investasi:,.0f}")
+            inv2.caption(f'_dengan rata-rata investasi sekitar **Rp {total_investasi/1000000000:,.0f} bio**_')
+            inv3.write('')
+
+            st.divider()
+            
+            peng1, peng2, peng3, peng4 = st.columns((1, 1, 1, 1))
+            peng1.metric(label = "Pengawasan Resiko Rendah", value = f"{pengawasan_r:,}", delta =f"{round(pengawasan_r_perc, 1)}%")
+            peng2.metric(label = "Pengawasan Resiko Menengah Rendah", value = f"{pengawasan_mr:,}", delta =f"{round(pengawasan_mr_perc, 1)}%")
+            peng3.metric(label = "Pengawasan Resiko Menengah Tinggi", value = f"{pengawasan_mt:,}", delta =f"{round(pengawasan_mt_perc, 1)}%")
+            peng4.metric(label = "Pengawasan Resiko Tinggi", value = f"{pengawasan_t:,}", delta =f"{round(pengawasan_t_perc, 1)}%")
+        
+            st.markdown("---")
+
+            # Jumlah Usaha yang ada di daerah tsb
+            # Persiapan variabelnya dulu
+            values_ju = [
+                filtered_data_inv['Usaha Besar'].sum()
+                , filtered_data_inv['Usaha Menengah'].sum()
+                , filtered_data_inv['Usaha Kecil'].sum()
+                , filtered_data_inv['Usaha Mikro'].sum()
+            ]
+            labels_ju = ['Usaha Besar', 'Usaha Menengah', 'Usaha Kecil', 'Usaha Mikro']
+
+            values_jp = [
+                filtered_data_inv['Badan Hukum Lainnya'].sum()
+                , filtered_data_inv['Badan Layanan Umum (BLU)'].sum()
+                , filtered_data_inv['Koperasi'].sum()
+                , filtered_data_inv['Lembaga dan Bentuk Lainnya'].sum()
+                , filtered_data_inv['Organisasi Lainnya'].sum()
+                , filtered_data_inv['Perorangan'].sum()
+                , filtered_data_inv['Persekutuan Firma (Fa / Venootschap Onder Firma)'].sum()
+                , filtered_data_inv['Persekutuan Perdata'].sum()
+                , filtered_data_inv['Perseroan Lainnya'].sum()
+                , filtered_data_inv['Perseroan Terbatas (PT)'].sum()
+                , filtered_data_inv['Perseroan Terbatas (PT) Perorangan'].sum()
+                , filtered_data_inv['Perusahaan Umum (Perum)'].sum()
+                , filtered_data_inv['Perusahaan Umum Daerah (Perumda)'].sum()
+                , filtered_data_inv['Yayasan'].sum()
+            ]
+            labels_jp = [
+                'Badan Hukum Lainnya'
+                , 'Badan Layanan Umum (BLU)'
+                , 'Koperasi'
+                , 'Lembaga dan Bentuk Lainnya'
+                , 'Organisasi Lainnya'
+                , 'Perorangan'
+                , 'Persekutuan Firma (Fa / Venootschap Onder Firma)'
+                , 'Persekutuan Perdata'
+                , 'Perseroan Lainnya'
+                , 'Perseroan Terbatas (PT)'
+                , 'Perseroan Terbatas (PT) Perorangan'
+                , 'Perusahaan Umum (Perum)'
+                , 'Perusahaan Umum Daerah (Perumda)'
+                , 'Yayasan'
+            ]
+
+            
+            # Pembuatan plotlynya terkait jumlah usaha dan jenis perusahaan
+            fig_ju = go.Figure(data=[go.Pie(labels=labels_ju, values=values_ju, hole=.3, marker=dict(colors=['#264653']))])
+            fig_jp = go.Figure(data=[go.Pie(labels=labels_jp, values=values_jp, hole=.3, marker=dict(colors=['#264653']))])
+
+            fig_ju.update_layout(title = "Pie Chart berdasarkan Jumlah Usaha", title_x = 0.5)
+            fig_jp.update_layout(title = "Pie Chart berdasarkan Jenis Perusahaan", title_x = 0.5)
+
+            st.subheader(f"Jumlah Usaha dan Jenis Perusahaan {sp}")
+
+            # Pembuatan element di streamlitnya 
+            ju1, ju2 = st.columns((1,1))
+            ju1.plotly_chart(fig_ju, use_container_width = True)
+            ju2.plotly_chart(fig_jp, use_container_width = True)
+
+            st.markdown("---")
+        
+        else : 
+            st.warning(f"No data available for this service point yet")
