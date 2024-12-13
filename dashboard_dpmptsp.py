@@ -463,6 +463,60 @@ with st.spinner('Updating Report .... ') :
         
             st.markdown("---")
 
+            # Bar chart: Tipe Pemohon
+            g3 = st.columns(1)[0]
+            pdf = pd.read_excel('ct_investasi_dimas.xlsx', sheet_name='All')
+            pdf = pdf[pdf['service_point'] == sp]
+
+            fig2 = go.Figure()
+            fig2.add_trace(go.Bar(
+                y=pdf['service_point'],
+                x=pdf['PMA'],
+                name='PMA',
+                orientation='h',
+                text=pdf['PMA'],
+                textposition='auto'
+            ))
+            fig2.add_trace(go.Bar(
+                y=pdf['service_point'],
+                x=pdf['PMDN'],
+                name='PMDN',
+                orientation='h',
+                text=pdf['PMDN'],
+                textposition='auto'
+            ))
+
+            fig2.update_layout(
+                barmode='stack',
+                title={
+                    'text': 'Tipe Investasi Berdasarkan Sumber Modal: PMA vs PMDN',
+                    'x': 0.5,
+                    'xanchor': 'center',
+                    'yanchor': 'top'
+                },
+                height=300,
+                xaxis={
+                    'showticklabels': False
+                }
+            )
+
+            g3.plotly_chart(fig2, use_container_width=True)
+
+            # Menampilkan total nilai PMA dan PMDN di kolom
+            st.markdown("")
+            col1, col2 = st.columns(2)
+
+            with col1:
+                total_pma_y = pdf['PMA_y'].sum()
+                col1.metric(label="Total Nilai Investasi PMA", value=f"Rp {total_pma_y:,.0f}")
+            
+            with col2:
+                total_pmdn_y = pdf['PMDN_y'].sum()
+                col2.metric(label="Total Nilai Investasi PMDN", value=f"Rp {total_pmdn_y:,.0f}")
+
+        
+            st.markdown("---")
+
             # Jumlah Usaha yang ada di daerah tsb
             # Persiapan variabelnya dulu
             values_ju = [
@@ -522,6 +576,180 @@ with st.spinner('Updating Report .... ') :
             ju2.plotly_chart(fig_jp, use_container_width = True)
 
             st.markdown("---")
+
+
+        with st.expander("## Distribusi Skala Usaha di Sub-wilayah", expanded=False):
+            # Baca data wilayah
+                wdf_inv = pd.read_excel('ct_investasi_dimas.xlsx', sheet_name='All')
+                selected_row = wdf_inv[wdf_inv['service_point'] == sp].iloc[0]
+                level_wilayah = selected_row['level_wilayah']
+
+                # Color palette
+                colors = [
+                    '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+                    '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf',
+                    '#aec7e8', '#ffbb78', '#98df8a', '#ff9896', '#c5b0d5',
+                    '#c49c94', '#f7b6d2', '#c7c7c7', '#dbdb8d', '#9edae5'
+                ]
+
+                # Daftar kolom bidang
+                skala_cols = ['Usaha Besar','Usaha Kecil','Usaha Menengah','Usaha Mikro']
+
+                if level_wilayah == 'Kelurahan':
+                    st.info("Data sama dengan Pie Chart diatas")
+
+                elif level_wilayah == 'Dinas':
+                    # Data untuk level dinas
+                    dinas = selected_row['Dinas']
+                    dinas_data = wdf_inv[wdf_inv['Dinas'] == dinas]
         
-        else : 
-            st.warning(f"No data available for this service point yet")
+                    # Agregasi data per kota
+                    agg_data = dinas_data.groupby('Kota')[skala_cols].sum().reset_index()
+                    agg_data['total'] = agg_data[skala_cols].sum(axis=1)
+        
+                    fig = go.Figure()
+                    color_idx = 0
+                    for skala in skala_cols:
+                        if agg_data[skala].sum() > 0:
+                            fig.add_trace(go.Bar(
+                                y=agg_data['Kota'],
+                                x=agg_data[skala] / agg_data['total'] * 100,
+                                name=skala,
+                                orientation='h',
+                                text=[f'{x:.1f}% ({int(y)})' for x, y in zip(agg_data[skala] / agg_data['total'] * 100, agg_data[skala])],
+                                textposition='inside',
+                                marker_color=colors[color_idx % len(colors)],
+                                legendgroup=skala,
+                                showlegend=True
+                            ))
+                            color_idx += 1
+                    title_text = f'Distribusi Skala Usaha untuk Dinas {dinas}'
+
+                elif level_wilayah == 'kota_kab':
+                    # Data untuk level kota
+                    kota = selected_row['Kota']
+                    kota_data = wdf_inv[wdf_inv['Kota'] == kota]
+                    agg_data = kota_data.groupby('Kecamatan')[skala_cols].sum().reset_index()
+                    agg_data['total'] = agg_data[skala_cols].sum(axis=1)
+        
+                    fig = go.Figure()
+                    color_idx = 0
+                    for skala in skala_cols:
+                        if agg_data[skala].sum() > 0:
+                            fig.add_trace(go.Bar(
+                                y=agg_data['Kecamatan'],
+                                x=agg_data[skala] / agg_data['total'] * 100,
+                                name=skala,
+                                orientation='h',
+                                text=[f'{x:.1f}% ({int(y)})' for x, y in zip(agg_data[skala] / agg_data['total'] * 100, agg_data[skala])],
+                                textposition='inside',
+                                marker_color=colors[color_idx % len(colors)],
+                                legendgroup=skala,
+                                showlegend=True
+                            ))
+                            color_idx += 1
+                    title_text = f'Distribusi Skala Usaha di Kota/Kabupaten {kota}'
+
+                elif level_wilayah == 'Kecamatan':
+                    # Data untuk level kecamatan
+                    kecamatan = selected_row['Kecamatan']
+                    kec_data = wdf_inv[wdf_inv['Kecamatan'] == kecamatan]
+                    kec_data['total'] = kec_data[skala_cols].sum(axis=1)
+        
+                    fig = go.Figure()
+                    color_idx = 0
+                    for skala in skala_cols:
+                        if kec_data[skala].sum() > 0:
+                            # Tangani nilai NaN dengan mengubah ke 0
+                            values = kec_data[skala].fillna(0)
+                            percentages = (values / kec_data['total'] * 100).fillna(0)
+                
+                            fig.add_trace(go.Bar(
+                                y=kec_data['Kelurahan'],
+                                x=percentages,
+                                name=skala,
+                                orientation='h',
+                                text=[f'{x:.1f}% ({int(y)})' if not pd.isna(y) else '0% (0)' 
+                                    for x, y in zip(percentages, values)],
+                                textposition='inside',
+                                marker_color=colors[color_idx % len(colors)],
+                                legendgroup=skala,
+                                showlegend=True
+                            ))
+                            color_idx += 1
+                    title_text = f'Distribusi Skala Usaha di Kecamatan {kecamatan}'
+
+                if level_wilayah != 'Kelurahan':
+                    # Pengaturan layout grafik
+                    fig.update_layout(
+                        barmode='stack',
+                        title=title_text,
+                        xaxis_title='Persentase (%)',
+                        height=800,  # Tinggi grafik diperbesar
+                        bargap=0.2,  # Jarak antar bar
+                        showlegend=True,
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=-0.5,
+                            xanchor="center",
+                            x=0.5,
+                            bgcolor='rgba(255, 255, 255, 0.8)',
+                            bordercolor='rgba(0, 0, 0, 0.3)',
+                            borderwidth=1,
+                            itemsizing='constant',
+                            itemwidth=40
+                        ),
+                        margin=dict(b=200),  # Margin bawah untuk legend
+                        uniformtext=dict(mode='hide', minsize=8)
+                    )
+
+                    # Tambahkan button untuk toggle legend
+                    fig.update_layout(
+                        updatemenus=[
+                            dict(
+                                type="buttons",
+                                direction="left",
+                                buttons=list([
+                                    dict(
+                                        args=[{"visible": [True] * len(fig.data)}],
+                                        label="Show All",
+                                        method="restyle"
+                                    ),
+                                    dict(
+                                        args=[{"visible": [False] * len(fig.data)}],
+                                        label="Hide All",
+                                        method="restyle"
+                                    )
+                                ]),
+                                pad={"r": 10, "t": 10},
+                                showactive=True,
+                                x=0.11,
+                                xanchor="left",
+                                y=1.1,
+                                yanchor="top"
+                            ),
+                        ]
+                    )
+
+                    st.plotly_chart(fig, use_container_width=True)
+
+       
+        with st.expander("## Detail Investasi Berdasarkan Sektor Pembina", expanded=False):
+            try:
+                # Membaca data dari Excel
+                sektor_cols = ['Badan Pengawas Tenaga Nuklir', 'Bank Indonesia', 'Kementerian Agama', 'Kementerian Energi dan Sumber Daya Mineral', 'Kementerian Hukum dan Hak Asasi Manusia', 'Kementerian Investasi/Badan Koordinasi Penanaman Modal', 'Kementerian Kelautan dan Perikanan', 'Kementerian Kesehatan', 'Kementerian Ketenagakerjaan','Kementerian Keuangan', 'Kementerian Komunikasi dan Informatika', 'Kementerian Koperasi dan Usaha Kecil dan  Menengah', 'Kementerian Lingkungan Hidup dan Kehutanan', 'Kementerian Pariwisata', 'Kementerian Pekerjaan Umum dan Perumahan Rakyat', 'Kementerian Pendidikan, Kebudayaan, Riset, dan Teknologi', 'Kementerian Perdagangan', 'Kementerian Perhubungan', 'Kementerian Perindustrian', 'Kementerian Pertahanan', 'Kementerian Pertanian', 'Kepolisian Negara Republik Indonesia', 'Otoritas Jasa Keuangan'
+]
+
+                sektor_data = tot_investasi_df[tot_investasi_df['service_point'] == sp]
+
+                # Menjumlahkan total unit untuk setiap sektor pembina
+                sektor_totals = sektor_data[sektor_cols].sum().reset_index()
+                sektor_totals.columns = ['Sektor Pembina', 'Total Unit']
+                sektor_totals = sektor_totals[sektor_totals['Total Unit'] > 0]  # Filter sektor dengan nilai > 0
+
+                # Menampilkan tabel di dalam ekspander
+                st.table(sektor_totals)
+
+            except Exception as e:
+                st.error(f"Terjadi kesalahan dalam memuat data sektor pembina: {e}")
