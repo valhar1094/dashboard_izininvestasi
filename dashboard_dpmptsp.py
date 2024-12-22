@@ -51,18 +51,21 @@ with st.spinner('Updating Report .... ') :
             masih_perc = (masih_diproses / total_izin) * 100
 
             # Define layout using column in streamlit
+            st.subheader(f"Metrik Izin Usaha dibawah {sp}")
             m1, m2, m3 = st.columns((1, 1, 1))
-            m1.metric(label="Total Izin yang diajukan", value=total_izin)
-            m2.metric(label="Selesai diproses", value=selesai_diproses, delta=f"{round(selesai_perc, 1)}%")
-            m3.metric(label="Masih diproses", value=masih_diproses, delta=f"{round(masih_perc, 1)}%")
+            m2.metric(label="Total Izin yang diajukan", value=total_izin)
 
-            c1, c2 = st.columns((1, 1))
-            c1.metric(label="Ditolak & dibatalkan", value=ditolak_dibatalkan, delta=f"{round(ditolak_perc, 1)}%")
-            c2.metric(label="Rata-rata izin per " + level.capitalize(), value=f"{average_izin:.1f}")
+            st.divider()
+
+            c1, c2, c3 = st.columns((1, 1, 1))
+            c1.metric(label="Selesai diproses", value=selesai_diproses, delta=f"{round(selesai_perc, 1)}%")
+            c2.metric(label="Masih diproses", value=masih_diproses, delta=f"{round(masih_perc, 1)}%")
+            c3.metric(label="Ditolak & dibatalkan", value=ditolak_dibatalkan, delta=f"{round(ditolak_perc, 1)}%")
 
             st.markdown("---")
 
             # Layout untuk grafik pie chart dan klasifikasi cluster
+            st.subheader(f"Pengelompokan Wilayah Ditinjau dari Izin Usaha")
             g1, g2 = st.columns((1, 1))
 
             pcdf = pd.read_excel('ct_izin.xlsx', sheet_name='tot_bidang2')
@@ -99,6 +102,7 @@ with st.spinner('Updating Report .... ') :
             st.markdown("---")
 
              # Bar chart: Tipe Pemohon
+            st.subheader(f"Distribusi Izin Usaha yang Masuk di {sp} Berdasarkan Tipe Pemohon")
             g3 = st.columns(1)[0]
             pdf = pd.read_excel('ct_izin.xlsx', sheet_name='pemohon')
             pdf = pdf[pdf['service_point'] == sp]
@@ -124,7 +128,7 @@ with st.spinner('Updating Report .... ') :
             fig2.update_layout(
                 barmode='stack',
                 title={
-                    'text': 'Tipe Pemohon berdasarkan Jumlah izin: Perorangan vs Perusahaan',
+                    'text': 'Tipe Pemohon berdasarkan Jumlah izin: Perorangan vs Perusahaan (dalam unit)',
                     'x': 0.5,
                     'xanchor': 'center',
                     'yanchor': 'top'
@@ -231,7 +235,7 @@ with st.spinner('Updating Report .... ') :
                         percentages = (values / kec_data['total'] * 100).fillna(0)
                 
                         fig.add_trace(go.Bar(
-                            y=kec_data['service_point'],
+                            y=kec_data['kelurahan'],
                             x=percentages,
                             name=bidang,
                             orientation='h',
@@ -307,15 +311,21 @@ with st.spinner('Updating Report .... ') :
                 sub_data = None
 
                 if level_wilayah == 'Kota':
-                    # For Kota level, show Kelurahan data
+                    # For Kota level, show Kecamatan data
                     kecamatan = wdf[wdf['kota'] == selected_row['kota']]['kecamatan'].unique()
                     sub_data = wdf[wdf['kecamatan'].isin(kecamatan)].copy()
+                    group_col = 'kecamatan'
+                    title_text = f'Distribusi Total Perizinan per Kecamatan di {selected_row["kota"]}'
+                elif level_wilayah == 'Kec':
+                    # For Kec level, show Kelurahan data
+                    kelurahan = wdf[wdf['kecamatan'] == selected_row['kecamatan']]['kelurahan'].unique()
+                    sub_data = wdf[wdf['kelurahan'].isin(kelurahan)].copy()
                     group_col = 'kelurahan'
-                    title_text = f'Distribusi Total Perizinan per Kelurahan di {selected_row["kota"]}'
+                    title_text = f'Distribusi Total Perizinan per Kelurahan di {selected_row["kecamatan"]}'
                 elif level_wilayah == 'Dinas':
                     # For DPMPTSP DKI JAKARTA, show aggregated Kecamatan data
                     sub_data = wdf.copy()
-                    group_col = 'kecamatan'
+                    group_col = 'kota'
                     title_text = 'Distribusi Total Perizinan per Kecamatan di DKI Jakarta'
 
                 if sub_data is not None:
@@ -361,22 +371,32 @@ with st.spinner('Updating Report .... ') :
                 try:
                     # Read the data
                     izin_detail_df = pd.read_excel('ct_izin.xlsx', sheet_name='nama_izin')
-            
+
                     # Filter data based on selected service point
                     filtered_izin = izin_detail_df[izin_detail_df['service_point'] == sp].copy()
-            
+
                     if not filtered_izin.empty:
                         # Ensure columns exist and handle missing data
                         required_columns = ['service_point', 'bidang_recode', 'nama_izin', 'total_selesai']
                         if all(col in filtered_izin.columns for col in required_columns):
+                            # Sort options for bidang_recode
+                            sort_order = st.radio(
+                                "Urutkan Bidang:",
+                                options=["Ascending", "Descending"],
+                                index=0
+                            )
+
+                            # Determine the sorting order
+                            ascending_order = True if sort_order == "Ascending" else False
+
                             # Group by bidang and nama_izin
                             grouped_izin = (filtered_izin
                                 .groupby(['bidang_recode', 'nama_izin'])
                                 .agg({'total_selesai': 'sum'})
                                 .reset_index()
-                                .sort_values('total_selesai', ascending=False)
+                                .sort_values(['bidang_recode', 'total_selesai'], ascending=[ascending_order, False])
                             )
-                    
+
                             # Display the table
                             st.markdown(f"### Detail Izin di {sp}")
                             st.dataframe(
@@ -400,11 +420,11 @@ with st.spinner('Updating Report .... ') :
                                     )
                                 }
                             )
-                    
+
                             # Display summary statistics
                             st.markdown("### Ringkasan")
                             col1, col2, col3 = st.columns(3)
-                    
+
                             with col1:
                                 st.metric("Total Jenis Izin", len(grouped_izin['nama_izin'].unique()))
                             with col2:
@@ -414,10 +434,11 @@ with st.spinner('Updating Report .... ') :
                         else:
                             st.error("Format data tidak sesuai. Mohon periksa kolom yang diperlukan.")
                     else:
-                        st.info("Tidak ada data izin untuk service point ini")
-                
+                        st.info("Tidak ada data izin untuk service point ini.")
+
                 except Exception as e:
-                    st.error(f"Terjadi kesalahan: {str(e)}")   
+                    st.error(f"Terjadi kesalahan: {str(e)}")
+   
 
         # ------------------------------------------------------------------------------------------------------------------
         ## Tab 2 Bagian Investasi             
@@ -434,6 +455,7 @@ with st.spinner('Updating Report .... ') :
 
         if not filtered_data_inv.empty : 
             total_investasi = filtered_data_inv['Jumlah_Investasi'].iloc[0]
+            total_unit_inv = filtered_data_inv['Total_Unit_Investasi'].iloc[0]
             pengawasan_r = filtered_data_inv['Rendah'].iloc[0]
             pengawasan_mr = filtered_data_inv['Menengah Rendah'].iloc[0]
             pengawasan_mt = filtered_data_inv['Menengah Tinggi'].iloc[0]
@@ -446,11 +468,11 @@ with st.spinner('Updating Report .... ') :
             pengawasan_t_perc = (pengawasan_t / total_pengawasan) * 100
 
             # Define column untuk pengawasan dan investasi
-            st.subheader(f"Monitoring Metrics for {sp}")
+            st.subheader(f"Metrik Investasi dan Pengawasan Usaha dibawah {sp}")
             inv1, inv2, inv3 = st.columns((1, 1, 1))
             inv1.write('')
             inv2.metric(label = "Total Investasi", value = f"Rp {total_investasi:,.0f}")
-            inv2.caption(f'_dengan rata-rata investasi sekitar **Rp {total_investasi/1000000000:,.0f} bio**_')
+            inv2.caption(f'_dengan total unit investasi sebanyak {total_unit_inv:,.0f} unit_')
             inv3.write('')
 
             st.divider()
@@ -462,8 +484,34 @@ with st.spinner('Updating Report .... ') :
             peng4.metric(label = "Pengawasan Resiko Tinggi", value = f"{pengawasan_t:,}", delta =f"{round(pengawasan_t_perc, 1)}%")
         
             st.markdown("---")
+            
+            # klasifikasi cluster
+            if sp != "DPMPTSP DKI JAKARTA":  # Kondisi untuk menyembunyikan display cluster
+                st.subheader(f"Pengelompokan Wilayah Ditinjau dari Kepadatan Investasi")
+                g1, g2 = st.columns((1, 1))
+
+                cidf = pd.read_excel('ct_investasi_dimas.xlsx', sheet_name='Cluster')
+                cidf = cidf[cidf['service_point'] == sp]
+
+                if not cidf.empty:
+                    cluster_value = cidf['Cluster'].iloc[0]
+
+                    if cluster_value == 0:
+                        lvl_cluster = 'memiliki tingkat kepadatan investasi yang sedang/menengah'
+                    elif cluster_value == 1:
+                        lvl_cluster = 'memiliki tingkat kepadatan investasi yang rendah'
+                    elif cluster_value == 2:
+                        lvl_cluster = 'memiliki tingkat kepadatan investasi yang tinggi'
+                    else:
+                        lvl_cluster = 'tidak ditemukan cluster ini'
+
+                    g1.markdown(f"## <h2 style='color: blue;'> Cluster {cluster_value}</h2>", unsafe_allow_html=True)
+                    g1.markdown(f"### Cluster ini {lvl_cluster}")
+            
+            st.markdown("---")
 
             # Bar chart: Tipe Pemohon
+            st.subheader(f"Distribusi Sumber Permodalan Investasi yang masuk di {sp}")
             g3 = st.columns(1)[0]
             pdf = pd.read_excel('ct_investasi_dimas.xlsx', sheet_name='All')
             pdf = pdf[pdf['service_point'] == sp]
@@ -565,7 +613,7 @@ with st.spinner('Updating Report .... ') :
             fig_ju = go.Figure(data=[go.Pie(labels=labels_ju, values=values_ju, hole=.3, marker=dict(colors=['#264653']))])
             fig_jp = go.Figure(data=[go.Pie(labels=labels_jp, values=values_jp, hole=.3, marker=dict(colors=['#264653']))])
 
-            fig_ju.update_layout(title = "Pie Chart berdasarkan Jumlah Usaha", title_x = 0.5)
+            fig_ju.update_layout(title = "Pie Chart berdasarkan Skala Usaha", title_x = 0.5)
             fig_jp.update_layout(title = "Pie Chart berdasarkan Jenis Perusahaan", title_x = 0.5)
 
             st.subheader(f"Jumlah Usaha dan Jenis Perusahaan {sp}")
@@ -576,6 +624,39 @@ with st.spinner('Updating Report .... ') :
             ju2.plotly_chart(fig_jp, use_container_width = True)
 
             st.markdown("---")
+
+       
+        with st.expander("## Detail Investasi Berdasarkan Sektor Pembina", expanded=False):
+            try:
+                # Membaca data dari Excel
+                sektor_cols = ['Badan Pengawas Tenaga Nuklir', 'Bank Indonesia', 'Kementerian Agama', 'Kementerian Energi dan Sumber Daya Mineral', 'Kementerian Hukum dan Hak Asasi Manusia', 'Kementerian Investasi/Badan Koordinasi Penanaman Modal', 'Kementerian Kelautan dan Perikanan', 'Kementerian Kesehatan', 'Kementerian Ketenagakerjaan','Kementerian Keuangan', 'Kementerian Komunikasi dan Informatika', 'Kementerian Koperasi dan Usaha Kecil dan  Menengah', 'Kementerian Lingkungan Hidup dan Kehutanan', 'Kementerian Pariwisata', 'Kementerian Pekerjaan Umum dan Perumahan Rakyat', 'Kementerian Pendidikan, Kebudayaan, Riset, dan Teknologi', 'Kementerian Perdagangan', 'Kementerian Perhubungan', 'Kementerian Perindustrian', 'Kementerian Pertahanan', 'Kementerian Pertanian', 'Kepolisian Negara Republik Indonesia', 'Otoritas Jasa Keuangan'
+]
+
+                sektor_data = tot_investasi_df[tot_investasi_df['service_point'] == sp]
+
+                # Menjumlahkan total unit untuk setiap sektor pembina
+                sektor_totals = sektor_data[sektor_cols].sum().reset_index()
+                sektor_totals.columns = ['Sektor Pembina', 'Total Unit']
+                sektor_totals = sektor_totals[sektor_totals['Total Unit'] > 0]  # Filter sektor dengan nilai > 0
+
+                # Menambahkan fitur sorting
+                sort_order = st.radio(
+                    "Urutkan Berdasarkan Total Unit:",
+                    options=["Descending", "Ascending"],
+                    index=0
+                )
+
+                # Menentukan urutan pengurutan
+                ascending_order = True if sort_order == "Ascending" else False
+
+                # Mengurutkan data
+                sektor_totals = sektor_totals.sort_values(by='Total Unit', ascending=ascending_order)
+
+                # Menampilkan tabel di dalam ekspander
+                st.table(sektor_totals)
+
+            except Exception as e:
+                st.error(f"Terjadi kesalahan dalam memuat data sektor pembina: {e}")
 
 
         with st.expander("## Distribusi Skala Usaha di Sub-wilayah", expanded=False):
@@ -623,7 +704,7 @@ with st.spinner('Updating Report .... ') :
                                 showlegend=True
                             ))
                             color_idx += 1
-                    title_text = f'Distribusi Skala Usaha untuk Dinas {dinas}'
+                    
 
                 elif level_wilayah == 'kota_kab':
                     # Data untuk level kota
@@ -733,23 +814,3 @@ with st.spinner('Updating Report .... ') :
                     )
 
                     st.plotly_chart(fig, use_container_width=True)
-
-       
-        with st.expander("## Detail Investasi Berdasarkan Sektor Pembina", expanded=False):
-            try:
-                # Membaca data dari Excel
-                sektor_cols = ['Badan Pengawas Tenaga Nuklir', 'Bank Indonesia', 'Kementerian Agama', 'Kementerian Energi dan Sumber Daya Mineral', 'Kementerian Hukum dan Hak Asasi Manusia', 'Kementerian Investasi/Badan Koordinasi Penanaman Modal', 'Kementerian Kelautan dan Perikanan', 'Kementerian Kesehatan', 'Kementerian Ketenagakerjaan','Kementerian Keuangan', 'Kementerian Komunikasi dan Informatika', 'Kementerian Koperasi dan Usaha Kecil dan  Menengah', 'Kementerian Lingkungan Hidup dan Kehutanan', 'Kementerian Pariwisata', 'Kementerian Pekerjaan Umum dan Perumahan Rakyat', 'Kementerian Pendidikan, Kebudayaan, Riset, dan Teknologi', 'Kementerian Perdagangan', 'Kementerian Perhubungan', 'Kementerian Perindustrian', 'Kementerian Pertahanan', 'Kementerian Pertanian', 'Kepolisian Negara Republik Indonesia', 'Otoritas Jasa Keuangan'
-]
-
-                sektor_data = tot_investasi_df[tot_investasi_df['service_point'] == sp]
-
-                # Menjumlahkan total unit untuk setiap sektor pembina
-                sektor_totals = sektor_data[sektor_cols].sum().reset_index()
-                sektor_totals.columns = ['Sektor Pembina', 'Total Unit']
-                sektor_totals = sektor_totals[sektor_totals['Total Unit'] > 0]  # Filter sektor dengan nilai > 0
-
-                # Menampilkan tabel di dalam ekspander
-                st.table(sektor_totals)
-
-            except Exception as e:
-                st.error(f"Terjadi kesalahan dalam memuat data sektor pembina: {e}")
